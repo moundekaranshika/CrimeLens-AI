@@ -31,5 +31,8 @@ Thumbs.db
 !assets/
 lib/
 
+# ML models are trained at runtime for the active Python/sklearn version
+models/*.pkl
+
 # Jupyter
 .ipynb_checkpoints/
