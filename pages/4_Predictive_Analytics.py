@@ -226,7 +226,7 @@ with tab3:
 
         # Risk heatmap matrix
         st.subheader("Risk Factor Breakdown")
-        heatmap_data = forecast.head(12][
+        heatmap_data = forecast.head(12)[
             ["district", "avg_risk", "repeat_rate", "unemployment", "recent_crimes"]
         ].set_index("district")
         fig = px.imshow(
