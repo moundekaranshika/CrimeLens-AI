@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from utils.data_loader import load_crime_data
-from utils.prediction_utils import save_models
+from utils.prediction_utils import ensure_models
 from utils.theme import apply_custom_css, render_sidebar_branding
 
 st.set_page_config(
@@ -32,13 +32,9 @@ render_sidebar_branding()
 
 @st.cache_resource(show_spinner="Initializing ML models...")
 def initialize_models():
-    """Ensure dataset and ML models exist on first launch."""
+    """Ensure dataset and ML models exist and load on first launch."""
     df = load_crime_data()
-    models_dir = ROOT / "models"
-    hotspot = models_dir / "hotspot_model.pkl"
-    anomaly = models_dir / "anomaly_model.pkl"
-    if not hotspot.exists() or not anomaly.exists():
-        save_models(df)
+    ensure_models(df)
     return True
 
 
