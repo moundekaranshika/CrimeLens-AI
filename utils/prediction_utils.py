@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import pickle
 from pathlib import Path
 from typing import Optional
 
@@ -144,27 +144,61 @@ def save_models(df: pd.DataFrame) -> None:
     joblib.dump({"model": anomaly_model, "metadata": anomaly_meta}, ANOMALY_MODEL_PATH)
 
 
+def _load_model_bundle(path: Path) -> tuple[Optional[object], dict]:
+    """Load a persisted model bundle, returning empty values if unpickling fails."""
+    if not path.exists():
+        return None, {}
+    try:
+        bundle = joblib.load(path)
+        model = bundle.get("model")
+        metadata = bundle.get("metadata", {})
+        if model is None:
+            return None, {}
+        return model, metadata
+    except (
+        ModuleNotFoundError,
+        ImportError,
+        AttributeError,
+        EOFError,
+        pickle.UnpicklingError,
+        ValueError,
+    ):
+        return None, {}
+
+
 def load_hotspot_model() -> tuple[Optional[object], dict]:
     """Load trained hotspot prediction model."""
-    if not HOTSPOT_MODEL_PATH.exists():
-        return None, {}
-    bundle = joblib.load(HOTSPOT_MODEL_PATH)
-    return bundle.get("model"), bundle.get("metadata", {})
+    return _load_model_bundle(HOTSPOT_MODEL_PATH)
 
 
 def load_anomaly_model() -> tuple[Optional[IsolationForest], dict]:
     """Load trained anomaly detection model."""
-    if not ANOMALY_MODEL_PATH.exists():
-        return None, {}
-    bundle = joblib.load(ANOMALY_MODEL_PATH)
-    return bundle.get("model"), bundle.get("metadata", {})
+    model, metadata = _load_model_bundle(ANOMALY_MODEL_PATH)
+    return model, metadata
+
+
+def models_are_ready() -> bool:
+    """Return True when both ML models load successfully."""
+    hotspot_model, _ = load_hotspot_model()
+    anomaly_model, _ = load_anomaly_model()
+    return hotspot_model is not None and anomaly_model is not None
+
+
+def ensure_models(df: pd.DataFrame) -> None:
+    """Train models when missing or when saved pickles are incompatible with the runtime."""
+    if models_are_ready():
+        return
+    save_models(df)
 
 
 def predict_hotspot_risk(df: pd.DataFrame) -> pd.DataFrame:
     """Predict risk zones for crime records using XGBoost model."""
     model, metadata = load_hotspot_model()
     if model is None:
-        return df.assign(predicted_risk=df.get("risk_zone", "Unknown"))
+        result = df.copy()
+        result["predicted_risk"] = df.get("risk_zone", "Unknown")
+        result["risk_confidence"] = 0.0
+        return result
 
     data, _ = _encode_features(df)
     encoders = metadata.get("encoders", {})
@@ -259,13 +293,13 @@ def forecast_district_risk(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_model_metrics(df: pd.DataFrame) -> dict:
     """Return model performance and status metrics."""
-    _, hotspot_meta = load_hotspot_model()
-    _, anomaly_meta = load_anomaly_model()
+    hotspot_model, hotspot_meta = load_hotspot_model()
+    anomaly_model, anomaly_meta = load_anomaly_model()
 
     return {
         "hotspot_accuracy": hotspot_meta.get("accuracy", "N/A"),
-        "hotspot_trained": HOTSPOT_MODEL_PATH.exists(),
-        "anomaly_trained": ANOMALY_MODEL_PATH.exists(),
+        "hotspot_trained": hotspot_model is not None,
+        "anomaly_trained": anomaly_model is not None,
         "anomaly_samples": anomaly_meta.get("training_samples", 0),
         "total_records": len(df),
     }
