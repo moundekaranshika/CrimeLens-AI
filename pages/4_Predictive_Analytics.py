@@ -17,6 +17,7 @@ from utils.data_loader import filter_data, load_crime_data
 from utils.prediction_utils import (
     RISK_COLORS,
     detect_anomalies,
+    ensure_models,
     forecast_district_risk,
     get_model_metrics,
     predict_hotspot_risk,
@@ -28,6 +29,7 @@ apply_custom_css()
 render_sidebar_branding()
 
 df = load_crime_data()
+ensure_models(df)
 districts, crime_types, date_range = render_sidebar_filters(df)
 filtered = filter_data(df, districts, crime_types, date_range)
 
